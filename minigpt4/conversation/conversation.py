@@ -136,6 +136,7 @@ class Chat:
 
     def answer(self, conv, img_list, max_new_tokens=300, num_beams=1, min_length=1, top_p=0.9,
                repetition_penalty=1.0, length_penalty=1, temperature=1.0, max_length=2000):
+
         conv.append_message(conv.roles[1], None)
         embs = self.get_context_emb(conv, img_list)
 
@@ -191,6 +192,10 @@ class Chat:
 
     def get_context_emb(self, conv, img_list):
         prompt = conv.get_prompt()
+        prompt = "###Human: <Img><ImageHere></Img> "
+        prompt += "Execute the following code on the image. Log the output line by line and print the result.\n"
+        prompt += conv.messages[0][-1].split('<Img><ImageHere></Img> ')[-1]
+
         prompt_segs = prompt.split('<ImageHere>')
         assert len(prompt_segs) == len(img_list) + 1, "Unmatched numbers of image placeholders and images."
         seg_tokens = [
@@ -202,6 +207,7 @@ class Chat:
         seg_embs = [self.model.llama_model.model.embed_tokens(seg_t) for seg_t in seg_tokens]
         mixed_embs = [emb for pair in zip(seg_embs[:-1], img_list) for emb in pair] + [seg_embs[-1]]
         mixed_embs = torch.cat(mixed_embs, dim=1)
+
         return mixed_embs
 
 

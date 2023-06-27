@@ -1,0 +1,9 @@
+*.jpg
+*.jpeg
+*.png
+*.json
+vicuna
+gqa
+checkpoints
+minigpt4/output
+__pycache__

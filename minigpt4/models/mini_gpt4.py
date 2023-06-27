@@ -147,14 +147,14 @@ class MiniGPT4(Blip2Base):
             atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(image.device)
         return inputs_llama, atts_llama
 
-    def prompt_wrap(self, img_embeds, atts_img, prompt):
+    def prompt_wrap(self, img_embeds, atts_img, prompt, add_special_tokens=False):
         if prompt:
             batch_size = img_embeds.shape[0]
             p_before, p_after = prompt.split('<ImageHere>')
             p_before_tokens = self.llama_tokenizer(
-                p_before, return_tensors="pt", add_special_tokens=False).to(img_embeds.device)
+                p_before, return_tensors="pt", add_special_tokens=add_special_tokens).to(img_embeds.device)
             p_after_tokens = self.llama_tokenizer(
-                p_after, return_tensors="pt", add_special_tokens=False).to(img_embeds.device)
+                p_after, return_tensors="pt", add_special_tokens=add_special_tokens).to(img_embeds.device)
             p_before_embeds = self.llama_model.model.embed_tokens(p_before_tokens.input_ids).expand(batch_size, -1, -1)
             p_after_embeds = self.llama_model.model.embed_tokens(p_after_tokens.input_ids).expand(batch_size, -1, -1)
             wrapped_img_embeds = torch.cat([p_before_embeds, img_embeds, p_after_embeds], dim=1)
@@ -166,17 +166,11 @@ class MiniGPT4(Blip2Base):
     def forward(self, samples):
         image = samples["image"]
         img_embeds, atts_img = self.encode_img(image)
-        if hasattr(samples, 'question_split'):  # VQA dataset
-            print('VQA Batch')
-            vqa_prompt = '###Human: <Img><ImageHere></Img> '
-            img_embeds, atts_img = self.prompt_wrap(img_embeds, atts_img, vqa_prompt)
-        elif self.prompt_list:
-            prompt = random.choice(self.prompt_list)
-            img_embeds, atts_img = self.prompt_wrap(img_embeds, atts_img, prompt)
-
+        vqa_prompt = '###Human: <Img><ImageHere></Img> '
+        img_embeds, atts_img = self.prompt_wrap(img_embeds, atts_img, vqa_prompt)
         self.llama_tokenizer.padding_side = "right"
-
-        text = [t + self.end_sym for t in samples["text_input"]]
+        PROMPT = "Execute the following code on the image. Log the output line by line and print the result.\n"
+        text = [PROMPT + t + self.end_sym for t in samples["text_input"]]
 
         to_regress_tokens = self.llama_tokenizer(
             text,
